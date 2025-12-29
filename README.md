@@ -4,6 +4,8 @@ A lightweight Azure Function App that retrieves TOTP codes from Azure Key Vault.
 
 Users click a link containing a password ID, authenticate via Entra ID, and receive a TOTP code.
 
+Use Conditional Access to enforce no sessions and strong MFA for added security.
+
 ## Screenshots
 
 <p align="center">
