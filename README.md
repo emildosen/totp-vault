@@ -61,16 +61,11 @@ After deployment completes (~5 minutes), configure Entra ID authentication:
 
 ### 4. Configure App Registration
 
-1. Go to **Authentication**
+1. Go to **Authentication** > **Settings**
    - Under **Implicit grant and hybrid flows**, enable **ID tokens**
    - Click **Save**
 
-2. Go to **Certificates & secrets** > **New client secret**
-   - Add a description and expiry
-   - Click **Add**
-   - **Note the secret value immediately** (you won't see it again)
-
-3. Go to **Token configuration** > **Add groups claim**
+2. Go to **Token configuration** > **Add groups claim**
    - Select **Security groups**
    - Click **Add**
 
@@ -81,11 +76,17 @@ After deployment completes (~5 minutes), configure Entra ID authentication:
 3. Click **Add identity provider**
 4. Select **Microsoft**
 5. Configure:
-   - **App registration type**: Pick an existing app registration
-   - **Application (client) ID**: Your app registration client ID
-   - **Client secret**: Your client secret from step 4
-   - **Issuer URL**: `https://sts.windows.net/<your-tenant-id>/v2.0`
-   - **Allowed token audiences**: `api://<your-client-id>`
+   - **Choose a tenant for your application and its users**: Workforce configuration
+   - **App registration type**: Pick an existing app registration in this directory
+   - **Name or app ID**: Select the app registration from Step 3
+   - **Client secret expiration**: Recommended: 180 days
+   - **Issuer URL**: Should auto populate (`https://sts.windows.net/<your-tenant-id>/v2.0`)
+   - **Client application requirement**: Allow requests only from this application itself
+   - **Identity requirement**: Allow requests from any identity
+   - **Tenant requirement**: Allow requests only from the issuer tenant
+   - **Restrict access**: Require authentication
+   - **Unauthenticated requests**: HTTP 302 Found redirect
+   - **Token store**: Enabled
 6. Click **Add**
 
 ### 6. Configure Function App Settings
@@ -98,6 +99,10 @@ After deployment completes (~5 minutes), configure Entra ID authentication:
 | `ALLOWED_GROUP_ID` | Security group Object ID from step 2 |
 
 3. Click **Apply**
+
+### 7. Restart Function App
+
+Go to the Function App overview page and click **Restart**.
 
 ### 7. Add TOTP Secrets
 

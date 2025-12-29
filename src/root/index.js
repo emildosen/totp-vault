@@ -1,7 +1,101 @@
 const fs = require('fs');
 const path = require('path');
 
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+};
+
+/**
+ * Parse the client principal from the x-ms-client-principal header
+ */
+function parseClientPrincipal(req) {
+  const header = req.headers['x-ms-client-principal'];
+  if (!header) {
+    return null;
+  }
+
+  try {
+    const buffer = Buffer.from(header, 'base64');
+    const principal = JSON.parse(buffer.toString('utf-8'));
+    return principal;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Extract group memberships from the client principal
+ */
+function getUserGroups(principal) {
+  if (!principal || !principal.claims) {
+    return [];
+  }
+
+  const groupClaims = principal.claims.filter(
+    (c) => c.typ === 'groups' ||
+           c.typ === 'http://schemas.microsoft.com/ws/2008/06/identity/claims/groups'
+  );
+  return groupClaims.map((c) => c.val);
+}
+
+/**
+ * Check if user is a member of the allowed security group
+ */
+function isUserAuthorized(groups, allowedGroupId) {
+  if (!allowedGroupId) {
+    return false;
+  }
+  return groups.includes(allowedGroupId);
+}
+
 module.exports = async function (context, req) {
+  // Check authentication
+  const clientPrincipal = parseClientPrincipal(req);
+  if (!clientPrincipal) {
+    // Redirect to Entra ID login
+    context.res = {
+      status: 302,
+      headers: {
+        'Location': '/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent('/'),
+        ...SECURITY_HEADERS
+      }
+    };
+    return;
+  }
+
+  // Check group membership
+  const groups = getUserGroups(clientPrincipal);
+  const allowedGroupId = process.env.ALLOWED_GROUP_ID;
+  if (!isUserAuthorized(groups, allowedGroupId)) {
+    // Serve access denied page
+    const accessDeniedPath = path.join(__dirname, '..', 'public', 'access-denied.html');
+    try {
+      const content = fs.readFileSync(accessDeniedPath);
+      context.res = {
+        status: 403,
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-cache',
+          ...SECURITY_HEADERS
+        },
+        body: content,
+        isRaw: true
+      };
+    } catch (err) {
+      context.log.error('Error serving access denied page:', err);
+      context.res = {
+        status: 403,
+        headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS },
+        body: 'Access Denied'
+      };
+    }
+    return;
+  }
+
+  // Serve the landing page
   const indexPath = path.join(__dirname, '..', 'public', 'index.html');
 
   try {
@@ -10,8 +104,8 @@ module.exports = async function (context, req) {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'X-Content-Type-Options': 'nosniff',
-        'X-Frame-Options': 'DENY'
+        'Cache-Control': 'no-cache',
+        ...SECURITY_HEADERS
       },
       body: content,
       isRaw: true
@@ -20,6 +114,7 @@ module.exports = async function (context, req) {
     context.log.error('Error serving index.html:', err);
     context.res = {
       status: 500,
+      headers: { 'Content-Type': 'text/plain', ...SECURITY_HEADERS },
       body: 'Internal server error'
     };
   }

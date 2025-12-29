@@ -158,6 +158,9 @@ Example: `https://totp-vault-func-abc123.azurewebsites.net/code/29244496`
 - Check secret name is `totp-{id}` (e.g., `totp-29244496`)
 - Verify `KEYVAULT_NAME` app setting is correct
 
+### 404 Error on "/.auth/login/aad?post_login_redirect_uri=%2Fadd"
+- Enable Microsoft authentication on the Function App.
+
 ### Authentication Loop
 - Redirect URI mismatch - must be exactly `https://<hostname>/.auth/login/aad/callback`
 - Client ID or secret incorrect

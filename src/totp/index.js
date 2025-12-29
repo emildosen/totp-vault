@@ -283,16 +283,20 @@ async function handleGetTotp(context, req, id) {
       body: { error: "An internal error occurred while processing the request" },
     };
   } finally {
-    // Log the request to Log Analytics (fire and forget)
-    logToAnalytics({
-      Timestamp: timestamp,
-      Operation: OPERATION.GET,
-      UserPrincipalName: userUpn,
-      SecretId: id || "invalid",
-      Success: success,
-      ErrorMessage: errorMessage,
-      ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
-    }).catch((err) => console.error("Failed to log audit entry:", err));
+    // Log the request to Log Analytics
+    try {
+      await logToAnalytics({
+        Timestamp: timestamp,
+        Operation: OPERATION.GET,
+        UserPrincipalName: userUpn,
+        SecretId: id || "invalid",
+        Success: success,
+        ErrorMessage: errorMessage,
+        ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
+      });
+    } catch (err) {
+      console.error("Failed to log audit entry:", err);
+    }
   }
 }
 
@@ -412,16 +416,20 @@ async function handleCreateTotp(context, req) {
       body: { error: "An internal error occurred while saving the secret" },
     };
   } finally {
-    // Log the request to Log Analytics (fire and forget)
-    logToAnalytics({
-      Timestamp: timestamp,
-      Operation: OPERATION.CREATE,
-      UserPrincipalName: userUpn,
-      SecretId: secretId,
-      Success: success,
-      ErrorMessage: errorMessage,
-      ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
-    }).catch((err) => console.error("Failed to log audit entry:", err));
+    // Log the request to Log Analytics
+    try {
+      await logToAnalytics({
+        Timestamp: timestamp,
+        Operation: OPERATION.CREATE,
+        UserPrincipalName: userUpn,
+        SecretId: secretId,
+        Success: success,
+        ErrorMessage: errorMessage,
+        ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
+      });
+    } catch (err) {
+      console.error("Failed to log audit entry:", err);
+    }
   }
 }
 

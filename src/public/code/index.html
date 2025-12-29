@@ -226,7 +226,9 @@
             background: rgba(0, 0, 0, 0.3);
             padding: 8px 16px;
             border-radius: 6px;
-            display: inline-block;
+            display: block;
+            margin: 0 auto;
+            width: fit-content;
         }
 
         .retry-btn {
@@ -369,7 +371,7 @@
             }
 
             // Show error state
-            function showError(title, message, code) {
+            function showError(title, message, code, showRetry) {
                 elements.loading.style.display = 'none';
                 elements.codeDisplay.classList.remove('visible');
                 elements.errorDisplay.classList.add('visible');
@@ -377,7 +379,8 @@
                 elements.errorTitle.textContent = title;
                 elements.errorMessage.textContent = message;
                 elements.errorCode.textContent = code ? `Error: ${code}` : '';
-                elements.errorCode.style.display = code ? 'inline-block' : 'none';
+                elements.errorCode.style.display = code ? 'block' : 'none';
+                elements.retryBtn.style.display = showRetry ? 'inline-block' : 'none';
 
                 stopTimer();
             }
@@ -430,7 +433,8 @@
                     showError(
                         'Invalid Request',
                         'No Password ID was provided. Please use a valid link containing the Password ID.',
-                        'MISSING_ID'
+                        'MISSING_ID',
+                        false
                     );
                     return;
                 }
@@ -468,31 +472,36 @@
                             showError(
                                 'Access Denied',
                                 'You are not authorized to access this code. Please ensure you are logged in with an authorized account.',
-                                status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN'
+                                status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN',
+                                false
                             );
                         } else if (status === 404) {
                             showError(
                                 'Not Found',
                                 'No TOTP secret exists for this password ID. Please verify the ID is correct.',
-                                'NOT_FOUND'
+                                'NOT_FOUND',
+                                true
                             );
                         } else if (status === 400) {
                             showError(
                                 'Invalid Request',
                                 errorMsg,
-                                'BAD_REQUEST'
+                                'BAD_REQUEST',
+                                true
                             );
                         } else if (status === 0) {
                             showError(
                                 'Connection Error',
                                 'Unable to connect to the server. Please check your network connection and try again.',
-                                'NETWORK_ERROR'
+                                'NETWORK_ERROR',
+                                true
                             );
                         } else {
                             showError(
                                 'Server Error',
                                 'An error occurred while retrieving the code. Please try again later.',
-                                'ERROR_' + status
+                                'ERROR_' + status,
+                                true
                             );
                         }
                     });
