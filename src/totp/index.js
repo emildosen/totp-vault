@@ -128,12 +128,24 @@ async function logToAnalytics(logEntry) {
 
 /**
  * Generate TOTP code from secret configuration
+ * Accepts either:
+ * - Plain base32 string: "JBSWY3DPEHPK3PXP"
+ * - JSON config: {"secret":"JBSWY3DPEHPK3PXP","algorithm":"SHA1","digits":6,"period":30}
  */
 function generateTotpCode(secretConfig) {
-  // Parse the secret configuration with defaults
-  const config = typeof secretConfig === "string"
-    ? JSON.parse(secretConfig)
-    : secretConfig;
+  let config;
+
+  if (typeof secretConfig === "string") {
+    const trimmed = secretConfig.trim();
+    // If it looks like JSON, parse it; otherwise treat as plain base32 secret
+    if (trimmed.startsWith("{")) {
+      config = JSON.parse(trimmed);
+    } else {
+      config = { secret: trimmed };
+    }
+  } else {
+    config = secretConfig;
+  }
 
   const secret = config.secret;
   if (!secret) {
