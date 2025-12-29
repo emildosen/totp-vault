@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: src
-        run: npm ci --production
+        run: npm ci --omit=dev
 
       - name: Create release package
         working-directory: src
