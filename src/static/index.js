@@ -65,7 +65,7 @@ module.exports = async function (context, req) {
   }
 
   // Resolve file path relative to public directory
-  const publicDir = path.join(__dirname, '..', '..', 'public');
+  const publicDir = path.join(__dirname, '..', 'public');
   const filePath = path.join(publicDir, requestPath);
 
   // Security: ensure path is within public directory (prevent directory traversal)
