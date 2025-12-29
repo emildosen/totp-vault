@@ -6,40 +6,36 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/package-lock.json
 
       - name: Install dependencies
         working-directory: src
         run: npm ci --omit=dev
 
-      - name: Create release package
+      - name: Create deployment package
         working-directory: src
         run: |
           zip -r ../totp-vault.zip . -x "*.git*" -x "*.md"
 
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Create/Update Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ steps.get_version.outputs.VERSION }}
           files: totp-vault.zip
+          tag_name: ${{ github.ref_name || 'latest' }}
+          name: ${{ github.ref_name || 'Latest Build' }}
+          make_latest: true
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "8303643453504769956"
+      "templateHash": "16644371406994133297"
     }
   },
   "parameters": {
@@ -34,13 +34,6 @@
       "metadata": {
         "description": "GitHub repository URL to fetch releases from"
       }
-    },
-    "deployCode": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Set to false to skip code deployment (infrastructure only)"
-      }
     }
   },
   "variables": {
@@ -52,7 +45,8 @@
     "keyVaultName": "[format('{0}-kv-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
     "storageAccountName": "[format('{0}st{1}', replace(parameters('resourcePrefix'), '-', ''), variables('uniqueSuffix'))]",
     "functionAppName": "[format('{0}-func-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
-    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6"
+    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6",
+    "packageUrl": "[format('{0}/releases/latest/download/totp-vault.zip', parameters('repoUrl'))]"
   },
   "resources": {
     "keyVaultRef": {
@@ -467,6 +461,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference('logAnalytics').outputs.workspaceCustomerId.value]"
           },
+          "packageUrl": {
+            "value": "[variables('packageUrl')]"
+          },
           "tags": {
             "value": "[variables('tags')]"
           }
@@ -478,7 +475,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "15542024716291665322"
+              "templateHash": "12888920125914766791"
             }
           },
           "parameters": {
@@ -517,6 +514,12 @@
               "type": "string",
               "metadata": {
                 "description": "Log Analytics Workspace ID (customer ID/GUID)"
+              }
+            },
+            "packageUrl": {
+              "type": "string",
+              "metadata": {
+                "description": "URL to the deployment package ZIP"
               }
             }
           },
@@ -590,6 +593,10 @@
                     {
                       "name": "LOG_ANALYTICS_SHARED_KEY",
                       "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=log-analytics-shared-key)', parameters('keyVaultName'))]"
+                    },
+                    {
+                      "name": "WEBSITE_RUN_FROM_PACKAGE",
+                      "value": "[parameters('packageUrl')]"
                     }
                   ]
                 }
@@ -643,162 +650,6 @@
         "logAnalytics",
         "logAnalyticsKeySecret",
         "storageAccount"
-      ]
-    },
-    "codeDeployment": {
-      "condition": "[parameters('deployCode')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2025-04-01",
-      "name": "codeDeployment",
-      "properties": {
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "mode": "Incremental",
-        "parameters": {
-          "name": {
-            "value": "[format('{0}-deploy', parameters('resourcePrefix'))]"
-          },
-          "location": {
-            "value": "[resourceGroup().location]"
-          },
-          "functionAppName": {
-            "value": "[reference('functionApp').outputs.functionAppName.value]"
-          },
-          "repoUrl": {
-            "value": "[parameters('repoUrl')]"
-          },
-          "tags": {
-            "value": "[variables('tags')]"
-          }
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "metadata": {
-            "_generator": {
-              "name": "bicep",
-              "version": "0.39.26.7824",
-              "templateHash": "13566103989286004602"
-            }
-          },
-          "parameters": {
-            "name": {
-              "type": "string",
-              "metadata": {
-                "description": "Name for the deployment script resource"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region"
-              }
-            },
-            "functionAppName": {
-              "type": "string",
-              "metadata": {
-                "description": "Function App name to deploy to"
-              }
-            },
-            "repoUrl": {
-              "type": "string",
-              "defaultValue": "https://github.com/emildosen/totp-vault",
-              "metadata": {
-                "description": "GitHub repository URL (e.g., https://github.com/owner/repo)"
-              }
-            },
-            "tags": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Resource tags"
-              }
-            },
-            "forceUpdateTag": {
-              "type": "string",
-              "defaultValue": "[utcNow()]",
-              "metadata": {
-                "description": "Force update tag to ensure script runs on each deployment"
-              }
-            }
-          },
-          "resources": [
-            {
-              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
-              "apiVersion": "2023-01-31",
-              "name": "[format('{0}-identity', parameters('name'))]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]"
-            },
-            {
-              "type": "Microsoft.Authorization/roleAssignments",
-              "apiVersion": "2022-04-01",
-              "scope": "[format('Microsoft.Web/sites/{0}', parameters('functionAppName'))]",
-              "name": "[guid(resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'contributor')]",
-              "properties": {
-                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
-                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), '2023-01-31').principalId]",
-                "principalType": "ServicePrincipal"
-              },
-              "dependsOn": [
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
-              ]
-            },
-            {
-              "type": "Microsoft.Resources/deploymentScripts",
-              "apiVersion": "2023-08-01",
-              "name": "[parameters('name')]",
-              "location": "[parameters('location')]",
-              "tags": "[parameters('tags')]",
-              "kind": "AzureCLI",
-              "identity": {
-                "type": "UserAssigned",
-                "userAssignedIdentities": {
-                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))))]": {}
-                }
-              },
-              "properties": {
-                "azCliVersion": "2.59.0",
-                "forceUpdateTag": "[parameters('forceUpdateTag')]",
-                "timeout": "PT30M",
-                "retentionInterval": "PT1H",
-                "cleanupPreference": "OnSuccess",
-                "environmentVariables": [
-                  {
-                    "name": "FUNCTION_APP_NAME",
-                    "value": "[parameters('functionAppName')]"
-                  },
-                  {
-                    "name": "REPO_URL",
-                    "value": "[parameters('repoUrl')]"
-                  },
-                  {
-                    "name": "RESOURCE_GROUP",
-                    "value": "[resourceGroup().name]"
-                  }
-                ],
-                "scriptContent": "      set -e\n\n      echo \"=== TOTP Vault Code Deployment ===\"\n      echo \"Repository: $REPO_URL\"\n      echo \"Function App: $FUNCTION_APP_NAME\"\n\n      # Download latest release ZIP from GitHub\n      echo \"Downloading latest release...\"\n      RELEASE_URL=\"${REPO_URL}/releases/latest/download/totp-vault.zip\"\n\n      # Use curl to download (follows redirects)\n      curl -L -o totp-vault.zip \"$RELEASE_URL\"\n\n      # Verify download\n      ls -la totp-vault.zip\n\n      # Deploy to Function App using ZIP deploy\n      echo \"Deploying to Function App...\"\n      az functionapp deployment source config-zip \\\n        --resource-group \"$RESOURCE_GROUP\" \\\n        --name \"$FUNCTION_APP_NAME\" \\\n        --src \"totp-vault.zip\"\n\n      echo \"=== Deployment Complete ===\"\n    "
-              },
-              "dependsOn": [
-                "[extensionResourceId(resourceId('Microsoft.Web/sites', parameters('functionAppName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name'))), 'contributor'))]",
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-identity', parameters('name')))]"
-              ]
-            }
-          ],
-          "outputs": {
-            "status": {
-              "type": "string",
-              "metadata": {
-                "description": "Deployment script status"
-              },
-              "value": "[reference(resourceId('Microsoft.Resources/deploymentScripts', parameters('name')), '2023-08-01').provisioningState]"
-            }
-          }
-        }
-      },
-      "dependsOn": [
-        "functionApp"
       ]
     }
   },

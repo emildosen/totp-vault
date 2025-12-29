@@ -20,9 +20,6 @@ param logAnalyticsRetentionDays int = 30
 @description('GitHub repository URL to fetch releases from')
 param repoUrl string = 'https://github.com/emildosen/totp-vault'
 
-@description('Set to false to skip code deployment (infrastructure only)')
-param deployCode bool = true
-
 // ============================================================================
 // Variables
 // ============================================================================
@@ -45,6 +42,9 @@ var functionAppName = '${resourcePrefix}-func-${uniqueSuffix}'
 // Key Vault Secrets User role definition ID
 // https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#key-vault-secrets-user
 var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+
+// Package URL for WEBSITE_RUN_FROM_PACKAGE
+var packageUrl = '${repoUrl}/releases/latest/download/totp-vault.zip'
 
 // ============================================================================
 // Modules
@@ -123,6 +123,7 @@ module functionApp 'modules/functionapp.bicep' = {
     storageAccountName: storageAccount.outputs.storageAccountName
     keyVaultName: keyVault.outputs.keyVaultName
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceCustomerId
+    packageUrl: packageUrl
     tags: tags
   }
   dependsOn: [
@@ -143,22 +144,6 @@ resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignme
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
     principalId: functionApp.outputs.principalId
     principalType: 'ServicePrincipal'
-  }
-}
-
-// ============================================================================
-// Code Deployment
-// ============================================================================
-
-// Deploy code from latest GitHub release
-module codeDeployment 'modules/deployment-script.bicep' = if (deployCode) {
-  name: 'codeDeployment'
-  params: {
-    name: '${resourcePrefix}-deploy'
-    location: resourceGroup().location
-    functionAppName: functionApp.outputs.functionAppName
-    repoUrl: repoUrl
-    tags: tags
   }
 }
 
