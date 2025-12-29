@@ -45,6 +45,3 @@ output workspaceCustomerId string = logAnalyticsWorkspace.properties.customerId
 
 @description('The name of the Log Analytics Workspace')
 output workspaceName string = logAnalyticsWorkspace.name
-
-@description('The primary shared key for Data Collector API')
-output workspaceSharedKey string = logAnalyticsWorkspace.listKeys().primarySharedKey

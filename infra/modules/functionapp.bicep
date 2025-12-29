@@ -12,9 +12,8 @@ param location string
 @description('Resource tags')
 param tags object = {}
 
-@description('Storage Account connection string')
-@secure()
-param storageConnectionString string
+@description('Storage Account name')
+param storageAccountName string
 
 @description('Key Vault name for app settings')
 param keyVaultName string
@@ -22,9 +21,13 @@ param keyVaultName string
 @description('Log Analytics Workspace ID (customer ID/GUID)')
 param logAnalyticsWorkspaceId string
 
-@description('Log Analytics shared key for Data Collector API')
-@secure()
-param logAnalyticsSharedKey string
+// Reference existing Storage Account to construct connection string internally
+// This avoids exposing the connection string in deployment outputs
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
+  name: storageAccountName
+}
+
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
 
 // App Service Plan (Consumption/Dynamic)
 resource hostingPlan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -93,7 +96,7 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         }
         {
           name: 'LOG_ANALYTICS_SHARED_KEY'
-          value: logAnalyticsSharedKey
+          value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=log-analytics-shared-key)'
         }
       ]
     }

@@ -1,11 +1,12 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
   "contentVersion": "1.0.0.0",
   "metadata": {
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "11436992969287742089"
+      "templateHash": "8303643453504769956"
     }
   },
   "parameters": {
@@ -53,21 +54,54 @@
     "functionAppName": "[format('{0}-func-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
     "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6"
   },
-  "resources": [
-    {
+  "resources": {
+    "keyVaultRef": {
+      "existing": true,
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('keyVaultName')]",
+      "dependsOn": [
+        "keyVault"
+      ]
+    },
+    "logAnalyticsRef": {
+      "existing": true,
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('logAnalyticsName')]",
+      "dependsOn": [
+        "logAnalytics"
+      ]
+    },
+    "logAnalyticsKeySecret": {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/{1}', variables('keyVaultName'), 'log-analytics-shared-key')]",
+      "properties": {
+        "value": "[listKeys('logAnalyticsRef', '2023-09-01').primarySharedKey]",
+        "contentType": "text/plain"
+      },
+      "dependsOn": [
+        "keyVault",
+        "logAnalytics"
+      ]
+    },
+    "keyVaultSecretsUserRoleAssignment": {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "name": "[guid(resourceGroup().id, variables('keyVaultName'), variables('functionAppName'), variables('keyVaultSecretsUserRoleId'))]",
+      "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('keyVaultName'))]",
+      "name": "[guid(variables('keyVaultName'), variables('functionAppName'), variables('keyVaultSecretsUserRoleId'))]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsUserRoleId'))]",
-        "principalId": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.principalId.value]",
+        "principalId": "[reference('functionApp').outputs.principalId.value]",
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'functionAppDeployment')]"
+        "functionApp",
+        "keyVault"
       ]
     },
-    {
+    "logAnalytics": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "logAnalyticsDeployment",
@@ -97,7 +131,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "16949938532932646090"
+              "templateHash": "11582427480642096693"
             }
           },
           "parameters": {
@@ -174,19 +208,12 @@
                 "description": "The name of the Log Analytics Workspace"
               },
               "value": "[parameters('workspaceName')]"
-            },
-            "workspaceSharedKey": {
-              "type": "string",
-              "metadata": {
-                "description": "The primary shared key for Data Collector API"
-              },
-              "value": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName')), '2023-09-01').primarySharedKey]"
             }
           }
         }
       }
     },
-    {
+    "keyVault": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "keyVaultDeployment",
@@ -320,7 +347,7 @@
         }
       }
     },
-    {
+    "storageAccount": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "storageAccountDeployment",
@@ -347,7 +374,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "8059798678623647588"
+              "templateHash": "5924017862486200843"
             }
           },
           "parameters": {
@@ -410,19 +437,12 @@
                 "description": "The name of the Storage Account"
               },
               "value": "[parameters('storageAccountName')]"
-            },
-            "connectionString": {
-              "type": "string",
-              "metadata": {
-                "description": "The connection string for the Storage Account"
-              },
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', parameters('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').keys[0].value)]"
             }
           }
         }
       }
     },
-    {
+    "functionApp": {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
       "name": "functionAppDeployment",
@@ -438,17 +458,14 @@
           "location": {
             "value": "[resourceGroup().location]"
           },
-          "storageConnectionString": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'storageAccountDeployment'), '2025-04-01').outputs.connectionString.value]"
+          "storageAccountName": {
+            "value": "[reference('storageAccount').outputs.storageAccountName.value]"
           },
           "keyVaultName": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyVaultDeployment'), '2025-04-01').outputs.keyVaultName.value]"
+            "value": "[reference('keyVault').outputs.keyVaultName.value]"
           },
           "logAnalyticsWorkspaceId": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeployment'), '2025-04-01').outputs.workspaceCustomerId.value]"
-          },
-          "logAnalyticsSharedKey": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeployment'), '2025-04-01').outputs.workspaceSharedKey.value]"
+            "value": "[reference('logAnalytics').outputs.workspaceCustomerId.value]"
           },
           "tags": {
             "value": "[variables('tags')]"
@@ -461,7 +478,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "12501360752551965165"
+              "templateHash": "15542024716291665322"
             }
           },
           "parameters": {
@@ -484,10 +501,10 @@
                 "description": "Resource tags"
               }
             },
-            "storageConnectionString": {
-              "type": "securestring",
+            "storageAccountName": {
+              "type": "string",
               "metadata": {
-                "description": "Storage Account connection string"
+                "description": "Storage Account name"
               }
             },
             "keyVaultName": {
@@ -500,12 +517,6 @@
               "type": "string",
               "metadata": {
                 "description": "Log Analytics Workspace ID (customer ID/GUID)"
-              }
-            },
-            "logAnalyticsSharedKey": {
-              "type": "securestring",
-              "metadata": {
-                "description": "Log Analytics shared key for Data Collector API"
               }
             }
           },
@@ -546,11 +557,11 @@
                   "appSettings": [
                     {
                       "name": "AzureWebJobsStorage",
-                      "value": "[parameters('storageConnectionString')]"
+                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', parameters('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').keys[0].value)]"
                     },
                     {
                       "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-                      "value": "[parameters('storageConnectionString')]"
+                      "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};EndpointSuffix={1};AccountKey={2}', parameters('storageAccountName'), environment().suffixes.storage, listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2023-05-01').keys[0].value)]"
                     },
                     {
                       "name": "WEBSITE_CONTENTSHARE",
@@ -578,7 +589,7 @@
                     },
                     {
                       "name": "LOG_ANALYTICS_SHARED_KEY",
-                      "value": "[parameters('logAnalyticsSharedKey')]"
+                      "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=log-analytics-shared-key)', parameters('keyVaultName'))]"
                     }
                   ]
                 }
@@ -628,12 +639,13 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'keyVaultDeployment')]",
-        "[resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeployment')]",
-        "[resourceId('Microsoft.Resources/deployments', 'storageAccountDeployment')]"
+        "keyVault",
+        "logAnalytics",
+        "logAnalyticsKeySecret",
+        "storageAccount"
       ]
     },
-    {
+    "codeDeployment": {
       "condition": "[parameters('deployCode')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2025-04-01",
@@ -651,7 +663,7 @@
             "value": "[resourceGroup().location]"
           },
           "functionAppName": {
-            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppName.value]"
+            "value": "[reference('functionApp').outputs.functionAppName.value]"
           },
           "repoUrl": {
             "value": "[parameters('repoUrl')]"
@@ -786,59 +798,59 @@
         }
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments', 'functionAppDeployment')]"
+        "functionApp"
       ]
     }
-  ],
+  },
   "outputs": {
     "functionAppHostname": {
       "type": "string",
       "metadata": {
         "description": "The default hostname of the Function App (for Entra ID app registration redirect URI)"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.defaultHostname.value]"
+      "value": "[reference('functionApp').outputs.defaultHostname.value]"
     },
     "functionAppUrl": {
       "type": "string",
       "metadata": {
         "description": "The full URL of the Function App"
       },
-      "value": "[format('https://{0}', reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.defaultHostname.value)]"
+      "value": "[format('https://{0}', reference('functionApp').outputs.defaultHostname.value)]"
     },
     "functionAppIdentityPrincipalId": {
       "type": "string",
       "metadata": {
         "description": "The principal ID of the Function App managed identity"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.principalId.value]"
+      "value": "[reference('functionApp').outputs.principalId.value]"
     },
     "functionAppName": {
       "type": "string",
       "metadata": {
         "description": "The name of the Function App"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'functionAppDeployment'), '2025-04-01').outputs.functionAppName.value]"
+      "value": "[reference('functionApp').outputs.functionAppName.value]"
     },
     "keyVaultName": {
       "type": "string",
       "metadata": {
         "description": "The name of the Key Vault"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyVaultDeployment'), '2025-04-01').outputs.keyVaultName.value]"
+      "value": "[reference('keyVault').outputs.keyVaultName.value]"
     },
     "keyVaultUri": {
       "type": "string",
       "metadata": {
         "description": "The URI of the Key Vault"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'keyVaultDeployment'), '2025-04-01').outputs.keyVaultUri.value]"
+      "value": "[reference('keyVault').outputs.keyVaultUri.value]"
     },
     "logAnalyticsWorkspaceId": {
       "type": "string",
       "metadata": {
         "description": "The Log Analytics Workspace customer ID"
       },
-      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalyticsDeployment'), '2025-04-01').outputs.workspaceCustomerId.value]"
+      "value": "[reference('logAnalytics').outputs.workspaceCustomerId.value]"
     }
   }
 }

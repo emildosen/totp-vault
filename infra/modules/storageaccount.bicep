@@ -39,6 +39,3 @@ output storageAccountId string = storageAccount.id
 
 @description('The name of the Storage Account')
 output storageAccountName string = storageAccount.name
-
-@description('The connection string for the Storage Account')
-output connectionString string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'

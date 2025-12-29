@@ -82,18 +82,52 @@ module storageAccount 'modules/storageaccount.bicep' = {
   }
 }
 
+// ============================================================================
+// Key Vault Secrets
+// ============================================================================
+
+// Reference the Key Vault to create secrets
+// Using variable name (known at compile time) instead of module output
+resource keyVaultRef 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVaultName
+  dependsOn: [
+    keyVault
+  ]
+}
+
+// Reference the Log Analytics workspace to get its shared key
+resource logAnalyticsRef 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+  name: logAnalyticsName
+  dependsOn: [
+    logAnalytics
+  ]
+}
+
+// Store Log Analytics shared key in Key Vault
+// This allows Function App to use Key Vault reference instead of exposing the key
+resource logAnalyticsKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVaultRef
+  name: 'log-analytics-shared-key'
+  properties: {
+    value: logAnalyticsRef.listKeys().primarySharedKey
+    contentType: 'text/plain'
+  }
+}
+
 // Function App with API and static file serving
 module functionApp 'modules/functionapp.bicep' = {
   name: 'functionAppDeployment'
   params: {
     functionAppName: functionAppName
     location: resourceGroup().location
-    storageConnectionString: storageAccount.outputs.connectionString
+    storageAccountName: storageAccount.outputs.storageAccountName
     keyVaultName: keyVault.outputs.keyVaultName
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceCustomerId
-    logAnalyticsSharedKey: logAnalytics.outputs.workspaceSharedKey
     tags: tags
   }
+  dependsOn: [
+    logAnalyticsKeySecret // Ensure secret exists before Function App tries to reference it
+  ]
 }
 
 // ============================================================================
@@ -101,9 +135,10 @@ module functionApp 'modules/functionapp.bicep' = {
 // ============================================================================
 
 // Grant Function App managed identity access to Key Vault secrets
+// Scoped to the specific Key Vault, not the entire resource group
 resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(resourceGroup().id, keyVaultName, functionAppName, keyVaultSecretsUserRoleId)
-  scope: resourceGroup()
+  name: guid(keyVaultName, functionAppName, keyVaultSecretsUserRoleId)
+  scope: keyVaultRef
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
     principalId: functionApp.outputs.principalId
