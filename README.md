@@ -5,9 +5,14 @@ A lightweight Azure Function App that retrieves TOTP codes from Azure Key Vault.
 Users click a link containing a password ID, authenticate via Entra ID, and receive a TOTP code.
 
 ## Screenshots
-![TOTP Display](docs/images/totp-display.png)
 
-![Adding new TOTP](docs/images/new-totp.png)
+<p align="center">
+  <img src="docs/images/totp-display.png" alt="TOTP Display" width="500">
+</p>
+
+<p align="center">
+  <img src="docs/images/new-totp.png" alt="Adding new TOTP" width="500">
+</p>
 
 ## Deploy to Azure
 
