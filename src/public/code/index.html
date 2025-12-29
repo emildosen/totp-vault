@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOTP Code - TOTP Vault</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #e4e4e7;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 48px;
+            max-width: 440px;
+            width: 100%;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 500;
+            color: #a1a1aa;
+            margin-bottom: 8px;
+        }
+
+        .header .id {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 14px;
+            color: #71717a;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(59, 130, 246, 0.2);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #a1a1aa;
+            font-size: 16px;
+        }
+
+        /* Code Display */
+        .code-display {
+            display: none;
+        }
+
+        .code-display.visible {
+            display: block;
+        }
+
+        .totp-code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 8px;
+            color: #fff;
+            margin-bottom: 24px;
+            text-shadow: 0 0 40px rgba(59, 130, 246, 0.5);
+            user-select: all;
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+
+        .totp-code:hover {
+            transform: scale(1.02);
+        }
+
+        .totp-code:active {
+            transform: scale(0.98);
+        }
+
+        .copy-hint {
+            font-size: 12px;
+            color: #71717a;
+            margin-bottom: 32px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .totp-code:hover + .copy-hint,
+        .copy-hint.visible {
+            opacity: 1;
+        }
+
+        .copy-hint.copied {
+            color: #22c55e;
+        }
+
+        /* Timer */
+        .timer-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .timer-ring {
+            position: relative;
+            width: 64px;
+            height: 64px;
+        }
+
+        .timer-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .timer-ring circle {
+            fill: none;
+            stroke-width: 4;
+        }
+
+        .timer-ring .bg {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .timer-ring .progress {
+            stroke: #3b82f6;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s linear, stroke 0.3s ease;
+        }
+
+        .timer-ring .progress.warning {
+            stroke: #f59e0b;
+        }
+
+        .timer-ring .progress.critical {
+            stroke: #ef4444;
+        }
+
+        .timer-seconds {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .timer-label {
+            font-size: 14px;
+            color: #a1a1aa;
+        }
+
+        /* Error State */
+        .error-display {
+            display: none;
+        }
+
+        .error-display.visible {
+            display: block;
+        }
+
+        .error-icon {
+            width: 64px;
+            height: 64px;
+            background: rgba(239, 68, 68, 0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+
+        .error-icon svg {
+            width: 32px;
+            height: 32px;
+            stroke: #ef4444;
+        }
+
+        .error-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .error-message {
+            font-size: 15px;
+            color: #a1a1aa;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .error-code {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 12px;
+            color: #71717a;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 16px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        .retry-btn {
+            margin-top: 24px;
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .retry-btn:hover {
+            background: #2563eb;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .container {
+                padding: 32px 24px;
+            }
+
+            .totp-code {
+                font-size: 48px;
+                letter-spacing: 4px;
+            }
+
+            .timer-ring {
+                width: 56px;
+                height: 56px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TOTP Code</h1>
+            <div class="id" id="secret-id"></div>
+        </div>
+
+        <!-- Loading State -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div class="loading-text">Retrieving code...</div>
+        </div>
+
+        <!-- Code Display -->
+        <div class="code-display" id="code-display">
+            <div class="totp-code" id="totp-code" title="Click to copy"></div>
+            <div class="copy-hint" id="copy-hint">Click to copy</div>
+
+            <div class="timer-container">
+                <div class="timer-ring">
+                    <svg width="64" height="64" viewBox="0 0 64 64">
+                        <circle class="bg" cx="32" cy="32" r="28"></circle>
+                        <circle class="progress" id="timer-progress" cx="32" cy="32" r="28"
+                                stroke-dasharray="175.93" stroke-dashoffset="0"></circle>
+                    </svg>
+                    <div class="timer-seconds" id="timer-seconds">30</div>
+                </div>
+                <div class="timer-label">seconds until refresh</div>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div class="error-display" id="error-display">
+            <div class="error-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <div class="error-title" id="error-title">Error</div>
+            <div class="error-message" id="error-message"></div>
+            <div class="error-code" id="error-code"></div>
+            <button class="retry-btn" id="retry-btn">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            'use strict';
+
+            // DOM Elements
+            const elements = {
+                secretId: document.getElementById('secret-id'),
+                loading: document.getElementById('loading'),
+                codeDisplay: document.getElementById('code-display'),
+                totpCode: document.getElementById('totp-code'),
+                copyHint: document.getElementById('copy-hint'),
+                timerProgress: document.getElementById('timer-progress'),
+                timerSeconds: document.getElementById('timer-seconds'),
+                errorDisplay: document.getElementById('error-display'),
+                errorTitle: document.getElementById('error-title'),
+                errorMessage: document.getElementById('error-message'),
+                errorCode: document.getElementById('error-code'),
+                retryBtn: document.getElementById('retry-btn')
+            };
+
+            // Constants
+            const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * 28; // 175.93
+            const DEFAULT_PERIOD = 30;
+
+            // State
+            let currentId = null;
+            let timerInterval = null;
+            let remaining = 0;
+            let period = DEFAULT_PERIOD;
+
+            // Extract ID from URL path
+            function getIdFromPath() {
+                const path = window.location.pathname;
+                const match = path.match(/\/code\/([^\/]+)/);
+                return match ? match[1] : null;
+            }
+
+            // Show loading state
+            function showLoading() {
+                elements.loading.style.display = 'flex';
+                elements.codeDisplay.classList.remove('visible');
+                elements.errorDisplay.classList.remove('visible');
+            }
+
+            // Show code display
+            function showCode(code, remainingSeconds) {
+                elements.loading.style.display = 'none';
+                elements.codeDisplay.classList.add('visible');
+                elements.errorDisplay.classList.remove('visible');
+
+                elements.totpCode.textContent = code;
+                remaining = remainingSeconds;
+
+                updateTimer();
+                startTimer();
+            }
+
+            // Show error state
+            function showError(title, message, code) {
+                elements.loading.style.display = 'none';
+                elements.codeDisplay.classList.remove('visible');
+                elements.errorDisplay.classList.add('visible');
+
+                elements.errorTitle.textContent = title;
+                elements.errorMessage.textContent = message;
+                elements.errorCode.textContent = code ? `Error: ${code}` : '';
+                elements.errorCode.style.display = code ? 'inline-block' : 'none';
+
+                stopTimer();
+            }
+
+            // Update timer display
+            function updateTimer() {
+                elements.timerSeconds.textContent = remaining;
+
+                // Calculate progress (0 = full, 1 = empty)
+                const progress = 1 - (remaining / period);
+                const offset = progress * CIRCLE_CIRCUMFERENCE;
+                elements.timerProgress.style.strokeDashoffset = offset;
+
+                // Update color based on remaining time
+                elements.timerProgress.classList.remove('warning', 'critical');
+                if (remaining <= 5) {
+                    elements.timerProgress.classList.add('critical');
+                } else if (remaining <= 10) {
+                    elements.timerProgress.classList.add('warning');
+                }
+            }
+
+            // Start countdown timer
+            function startTimer() {
+                stopTimer();
+
+                timerInterval = setInterval(function() {
+                    remaining--;
+
+                    if (remaining <= 0) {
+                        // Fetch new code
+                        fetchCode();
+                    } else {
+                        updateTimer();
+                    }
+                }, 1000);
+            }
+
+            // Stop timer
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                }
+            }
+
+            // Fetch TOTP code from API
+            function fetchCode() {
+                if (!currentId) {
+                    showError(
+                        'Invalid Request',
+                        'No password ID was provided. Please access this page through a valid link from IT Glue.',
+                        'MISSING_ID'
+                    );
+                    return;
+                }
+
+                showLoading();
+
+                fetch('/api/totp/' + encodeURIComponent(currentId))
+                    .then(function(response) {
+                        if (!response.ok) {
+                            return response.json().then(function(data) {
+                                throw { status: response.status, data: data };
+                            }).catch(function(err) {
+                                if (err.status) throw err;
+                                throw { status: response.status, data: { error: 'Unknown error' } };
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        if (data.code && typeof data.remaining === 'number') {
+                            period = data.period || DEFAULT_PERIOD;
+                            showCode(data.code, data.remaining);
+                        } else {
+                            throw { status: 500, data: { error: 'Invalid response format' } };
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('Error fetching TOTP:', err);
+
+                        const status = err.status || 0;
+                        const errorData = err.data || {};
+                        const errorMsg = errorData.error || errorData.message || 'An unexpected error occurred';
+
+                        if (status === 401 || status === 403) {
+                            showError(
+                                'Access Denied',
+                                'You are not authorized to access this code. Please ensure you are logged in with an authorized account.',
+                                status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN'
+                            );
+                        } else if (status === 404) {
+                            showError(
+                                'Not Found',
+                                'No TOTP secret exists for this password ID. Please verify the ID is correct.',
+                                'NOT_FOUND'
+                            );
+                        } else if (status === 400) {
+                            showError(
+                                'Invalid Request',
+                                errorMsg,
+                                'BAD_REQUEST'
+                            );
+                        } else if (status === 0) {
+                            showError(
+                                'Connection Error',
+                                'Unable to connect to the server. Please check your network connection and try again.',
+                                'NETWORK_ERROR'
+                            );
+                        } else {
+                            showError(
+                                'Server Error',
+                                'An error occurred while retrieving the code. Please try again later.',
+                                'ERROR_' + status
+                            );
+                        }
+                    });
+            }
+
+            // Copy code to clipboard
+            function copyCode() {
+                const code = elements.totpCode.textContent;
+                if (!code) return;
+
+                navigator.clipboard.writeText(code).then(function() {
+                    elements.copyHint.textContent = 'Copied!';
+                    elements.copyHint.classList.add('visible', 'copied');
+
+                    setTimeout(function() {
+                        elements.copyHint.textContent = 'Click to copy';
+                        elements.copyHint.classList.remove('visible', 'copied');
+                    }, 2000);
+                }).catch(function(err) {
+                    console.error('Failed to copy:', err);
+                    // Fallback for older browsers
+                    const selection = window.getSelection();
+                    const range = document.createRange();
+                    range.selectNodeContents(elements.totpCode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                });
+            }
+
+            // Initialize
+            function init() {
+                currentId = getIdFromPath();
+
+                if (currentId) {
+                    elements.secretId.textContent = 'ID: ' + currentId;
+                } else {
+                    elements.secretId.textContent = '';
+                }
+
+                // Event listeners
+                elements.totpCode.addEventListener('click', copyCode);
+                elements.retryBtn.addEventListener('click', fetchCode);
+
+                // Initial fetch
+                fetchCode();
+            }
+
+            // Start when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>

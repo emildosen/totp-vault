@@ -1,0 +1,26 @@
+{
+  "name": "totp-vault-api",
+  "version": "1.0.0",
+  "description": "Azure Function API for TOTP code retrieval from Key Vault",
+  "main": "totp/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.2.0",
+    "@azure/keyvault-secrets": "^4.8.0",
+    "otpauth": "^9.2.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "azure-functions",
+    "totp",
+    "keyvault"
+  ],
+  "author": "",
+  "license": "MIT"
+}
