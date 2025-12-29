@@ -182,6 +182,81 @@
             color: #fff;
         }
 
+        /* Confirmation modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: #1e1e2e;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal h2 {
+            color: #fbbf24;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+
+        .modal p {
+            color: #a1a1aa;
+            font-size: 14px;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .modal-btn {
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .modal-btn.cancel {
+            background: #4b5563;
+            color: #fff;
+        }
+
+        .modal-btn.cancel:hover {
+            background: #6b7280;
+        }
+
+        .modal-btn.confirm {
+            background: #f59e0b;
+            color: #000;
+        }
+
+        .modal-btn.confirm:hover {
+            background: #fbbf24;
+        }
+
         /* Responsive */
         @media (max-width: 480px) {
             .container {
@@ -231,6 +306,18 @@
         <a href="/" class="back-link">Back to home</a>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirm-modal">
+        <div class="modal">
+            <h2>Secret Already Exists</h2>
+            <p>A TOTP secret with ID <strong id="modal-id"></strong> already exists. Do you want to overwrite it? The previous version will be preserved in Key Vault history.</p>
+            <div class="modal-buttons">
+                <button type="button" class="modal-btn cancel" id="modal-cancel">Cancel</button>
+                <button type="button" class="modal-btn confirm" id="modal-confirm">Overwrite</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         (function() {
             'use strict';
@@ -242,6 +329,13 @@
             const statusMessage = document.getElementById('status-message');
             const passwordIdInput = document.getElementById('password-id');
             const totpSecretInput = document.getElementById('totp-secret');
+            const confirmModal = document.getElementById('confirm-modal');
+            const modalId = document.getElementById('modal-id');
+            const modalCancel = document.getElementById('modal-cancel');
+            const modalConfirm = document.getElementById('modal-confirm');
+
+            // Store pending submission data
+            let pendingSubmission = null;
 
             function showStatus(type, title, message) {
                 statusDiv.className = 'status visible ' + type;
@@ -263,10 +357,47 @@
                 }
             }
 
+            function showModal(id) {
+                modalId.textContent = id;
+                confirmModal.classList.add('visible');
+            }
+
+            function hideModal() {
+                confirmModal.classList.remove('visible');
+                pendingSubmission = null;
+            }
+
             // Validate base32 format (allow spaces for readability)
             function isValidBase32(str) {
                 const cleaned = str.replace(/\s/g, '').toUpperCase();
                 return /^[A-Z2-7]+=*$/.test(cleaned) && cleaned.length >= 16;
+            }
+
+            // Check if a secret with the given ID already exists
+            async function checkSecretExists(id) {
+                try {
+                    const response = await fetch('/api/totp/' + encodeURIComponent(id), {
+                        method: 'HEAD'
+                    });
+                    return response.status === 200;
+                } catch (err) {
+                    // If we can't check, assume it doesn't exist and let the POST handle errors
+                    return false;
+                }
+            }
+
+            // Save the secret to the API
+            async function saveSecret(id, secret) {
+                const response = await fetch('/api/totp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id, secret })
+                });
+
+                const data = await response.json();
+                return { response, data };
             }
 
             form.addEventListener('submit', async function(e) {
@@ -292,15 +423,32 @@
                 setLoading(true);
 
                 try {
-                    const response = await fetch('/api/totp', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ id, secret })
-                    });
+                    // Check if secret already exists
+                    const exists = await checkSecretExists(id);
 
-                    const data = await response.json();
+                    if (exists) {
+                        // Store the submission data and show confirmation modal
+                        pendingSubmission = { id, secret };
+                        setLoading(false);
+                        showModal(id);
+                        return;
+                    }
+
+                    // Secret doesn't exist, proceed with save
+                    await performSave(id, secret);
+                } catch (err) {
+                    console.error('Error adding secret:', err);
+                    showStatus('error', 'Connection Error',
+                        'Unable to connect to the server. Please check your network connection.');
+                    setLoading(false);
+                }
+            });
+
+            async function performSave(id, secret) {
+                setLoading(true);
+
+                try {
+                    const { response, data } = await saveSecret(id, secret);
 
                     if (response.ok) {
                         showStatus('success', 'Secret Added',
@@ -315,8 +463,6 @@
                             showStatus('error', 'Not Authenticated', 'Please log in to add secrets.');
                         } else if (response.status === 403) {
                             showStatus('error', 'Access Denied', 'You are not authorized to add secrets.');
-                        } else if (response.status === 409) {
-                            showStatus('error', 'Already Exists', 'A secret with this ID already exists. Delete it first or use a different ID.');
                         } else {
                             showStatus('error', 'Error', errorMsg);
                         }
@@ -327,6 +473,33 @@
                         'Unable to connect to the server. Please check your network connection.');
                 } finally {
                     setLoading(false);
+                }
+            }
+
+            // Modal event handlers
+            modalCancel.addEventListener('click', function() {
+                hideModal();
+            });
+
+            modalConfirm.addEventListener('click', async function() {
+                if (pendingSubmission) {
+                    const { id, secret } = pendingSubmission;
+                    hideModal();
+                    await performSave(id, secret);
+                }
+            });
+
+            // Close modal on overlay click
+            confirmModal.addEventListener('click', function(e) {
+                if (e.target === confirmModal) {
+                    hideModal();
+                }
+            });
+
+            // Close modal on Escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && confirmModal.classList.contains('visible')) {
+                    hideModal();
                 }
             });
 

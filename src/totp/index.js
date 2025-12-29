@@ -434,7 +434,72 @@ async function handleCreateTotp(context, req) {
 }
 
 /**
- * Main Azure Function handler - routes to GET or POST handler
+ * Handle HEAD request - check if secret exists
+ */
+async function handleCheckExists(context, req, id) {
+  try {
+    // Validate input: id must be numeric string
+    if (!id || !isValidId(id)) {
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      };
+      return;
+    }
+
+    // Parse authentication header
+    const clientPrincipal = parseClientPrincipal(req);
+    if (!clientPrincipal) {
+      context.res = {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      };
+      return;
+    }
+
+    // Extract user details and check authorization
+    const { groups } = getUserDetails(clientPrincipal);
+    const allowedGroupId = process.env.ALLOWED_GROUP_ID;
+    if (!isUserAuthorized(groups, allowedGroupId)) {
+      context.res = {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      };
+      return;
+    }
+
+    // Check if secret exists in Key Vault
+    const client = getSecretClient();
+    const secretName = `totp-${id}`;
+
+    try {
+      await client.getSecret(secretName);
+      // Secret exists
+      context.res = {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      };
+    } catch (error) {
+      if (error.code === "SecretNotFound" || error.statusCode === 404) {
+        context.res = {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        };
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    context.log.error("Error checking secret existence:", error.message);
+    context.res = {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    };
+  }
+}
+
+/**
+ * Main Azure Function handler - routes to GET, POST, or HEAD handler
  */
 module.exports = async function (context, req) {
   const method = req.method.toUpperCase();
@@ -444,6 +509,9 @@ module.exports = async function (context, req) {
     await handleGetTotp(context, req, id);
   } else if (method === "POST") {
     await handleCreateTotp(context, req);
+  } else if (method === "HEAD") {
+    const id = context.bindingData.id;
+    await handleCheckExists(context, req, id);
   } else {
     context.res = {
       status: 405,
