@@ -7,7 +7,7 @@ Users click a link containing a password ID, authenticate via Entra ID, and rece
 ## Screenshots
 ![TOTP Display](docs/images/totp-display.png)
 
-![Adding new TOTP](docs/images//new-totp.png)
+![Adding new TOTP](docs/images/new-totp.png)
 
 ## Deploy to Azure
 
@@ -21,6 +21,7 @@ Users click a link containing a password ID, authenticate via Entra ID, and rece
 | Storage Account | Required for Function App |
 | Key Vault (Standard) | Stores TOTP secrets |
 | Log Analytics Workspace | Audit logging |
+| Application Insights | Function App monitoring |
 
 ## Post-Deployment Setup
 
