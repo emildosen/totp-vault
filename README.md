@@ -102,7 +102,10 @@ After deployment completes (~5 minutes), configure Entra ID authentication:
 1. Go to **Azure Portal** > **Key Vaults** > your Key Vault
 2. Go to **Objects** > **Secrets** > **Generate/Import**
 3. Name: `totp-<password-id>` (e.g., `totp-29244496`)
-4. Secret value (JSON format):
+4. Secret value:
+Normal value:
+`BASE32ENCODEDSEED`
+JSON value:
    ```json
    {"secret":"BASE32ENCODEDSEED"}
    ```
