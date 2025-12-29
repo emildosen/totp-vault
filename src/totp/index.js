@@ -189,7 +189,7 @@ function generateTotpCode(secretConfig) {
 }
 
 /**
- * Validate that the ID is a numeric string (IT Glue password ID format)
+ * Validate that the ID is a numeric string (Password ID format)
  */
 function isValidId(id) {
   return /^\d+$/.test(id);

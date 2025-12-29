@@ -205,7 +205,7 @@
                        pattern="[0-9]+"
                        required
                        autocomplete="off">
-                <div class="hint">The IT Glue password ID (numeric only)</div>
+                <div class="hint">The Password ID (numeric only)</div>
             </div>
 
             <div class="form-group">
@@ -304,8 +304,10 @@
 
                     if (response.ok) {
                         showStatus('success', 'Secret Added',
-                            'TOTP secret for ID ' + id + ' has been saved to the vault.');
-                        form.reset();
+                            'Redirecting to view your TOTP code...');
+                        setTimeout(function() {
+                            window.location.href = '/code/' + encodeURIComponent(id);
+                        }, 1000);
                     } else {
                         const errorMsg = data.error || data.message || 'An unknown error occurred';
 
