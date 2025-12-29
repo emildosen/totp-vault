@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "16644371406994133297"
+      "templateHash": "13795178407221335055"
     }
   },
   "parameters": {
@@ -42,6 +42,7 @@
       "project": "totp-vault"
     },
     "logAnalyticsName": "[format('{0}-log', parameters('resourcePrefix'))]",
+    "appInsightsName": "[format('{0}-ai-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
     "keyVaultName": "[format('{0}-kv-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
     "storageAccountName": "[format('{0}st{1}', replace(parameters('resourcePrefix'), '-', ''), variables('uniqueSuffix'))]",
     "functionAppName": "[format('{0}-func-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
@@ -206,6 +207,104 @@
           }
         }
       }
+    },
+    "appInsights": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "appInsightsDeployment",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "appInsightsName": {
+            "value": "[variables('appInsightsName')]"
+          },
+          "location": {
+            "value": "[resourceGroup().location]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference('logAnalytics').outputs.workspaceId.value]"
+          },
+          "tags": {
+            "value": "[variables('tags')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.39.26.7824",
+              "templateHash": "14935958118874839673"
+            }
+          },
+          "parameters": {
+            "appInsightsName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Application Insights resource"
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics Workspace resource ID"
+              }
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {},
+              "metadata": {
+                "description": "Resource tags"
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[parameters('appInsightsName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "kind": "web",
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "connectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "The connection string for Application Insights"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').ConnectionString]"
+            },
+            "instrumentationKey": {
+              "type": "string",
+              "metadata": {
+                "description": "The instrumentation key for Application Insights"
+              },
+              "value": "[reference(resourceId('Microsoft.Insights/components', parameters('appInsightsName')), '2020-02-02').InstrumentationKey]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "logAnalytics"
+      ]
     },
     "keyVault": {
       "type": "Microsoft.Resources/deployments",
@@ -461,6 +560,9 @@
           "logAnalyticsWorkspaceId": {
             "value": "[reference('logAnalytics').outputs.workspaceCustomerId.value]"
           },
+          "appInsightsConnectionString": {
+            "value": "[reference('appInsights').outputs.connectionString.value]"
+          },
           "packageUrl": {
             "value": "[variables('packageUrl')]"
           },
@@ -475,7 +577,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.39.26.7824",
-              "templateHash": "12888920125914766791"
+              "templateHash": "8352026395189173257"
             }
           },
           "parameters": {
@@ -520,6 +622,12 @@
               "type": "string",
               "metadata": {
                 "description": "URL to the deployment package ZIP"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "metadata": {
+                "description": "Application Insights connection string"
               }
             }
           },
@@ -597,6 +705,10 @@
                     {
                       "name": "WEBSITE_RUN_FROM_PACKAGE",
                       "value": "[parameters('packageUrl')]"
+                    },
+                    {
+                      "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                      "value": "[parameters('appInsightsConnectionString')]"
                     }
                   ]
                 }
@@ -646,6 +758,7 @@
         }
       },
       "dependsOn": [
+        "appInsights",
         "keyVault",
         "logAnalytics",
         "logAnalyticsKeySecret",

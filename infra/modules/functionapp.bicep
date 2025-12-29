@@ -24,6 +24,9 @@ param logAnalyticsWorkspaceId string
 @description('URL to the deployment package ZIP')
 param packageUrl string
 
+@description('Application Insights connection string')
+param appInsightsConnectionString string
+
 // Reference existing Storage Account to construct connection string internally
 // This avoids exposing the connection string in deployment outputs
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' existing = {
@@ -104,6 +107,10 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: packageUrl
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsightsConnectionString
         }
       ]
     }

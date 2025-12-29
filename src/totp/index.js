@@ -88,7 +88,6 @@ async function logToAnalytics(logEntry) {
 
   if (!workspaceId || !sharedKey) {
     // Log Analytics not configured, skip logging but don't fail
-    console.warn("Log Analytics not configured, skipping audit log");
     return;
   }
 
@@ -120,11 +119,10 @@ async function logToAnalytics(logEntry) {
     });
 
     if (!response.ok) {
-      console.error(`Log Analytics API returned ${response.status}: ${await response.text()}`);
+      // Log Analytics API error - don't fail the request
     }
   } catch (error) {
     // Don't fail the request if logging fails
-    console.error("Failed to send log to Log Analytics:", error.message);
   }
 }
 
@@ -252,12 +250,12 @@ module.exports = async function (context, req) {
       body: { code, remaining },
     };
   } catch (error) {
-    console.error("Error processing TOTP request:", error);
+    context.log.error("Error processing TOTP request:", error.message, error.stack);
     errorMessage = error.message;
     context.res = {
       status: 500,
       headers: { "Content-Type": "application/json" },
-      body: { error: "An internal error occurred while processing the request" },
+      body: { error: "An internal error occurred while processing the request", details: error.message },
     };
   } finally {
     // Log the request to Log Analytics (fire and forget)

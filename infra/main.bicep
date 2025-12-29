@@ -33,6 +33,7 @@ var tags = {
 
 // Log Analytics only needs to be unique within the resource group
 var logAnalyticsName = '${resourcePrefix}-log'
+var appInsightsName = '${resourcePrefix}-ai-${uniqueSuffix}'
 // Key Vault, Storage Account, and Function App names must be globally unique
 var keyVaultName = '${resourcePrefix}-kv-${uniqueSuffix}'
 // Storage account names: 3-24 chars, lowercase alphanumeric only
@@ -57,6 +58,17 @@ module logAnalytics 'modules/loganalytics.bicep' = {
     workspaceName: logAnalyticsName
     location: resourceGroup().location
     retentionInDays: logAnalyticsRetentionDays
+    tags: tags
+  }
+}
+
+// Application Insights linked to Log Analytics
+module appInsights 'modules/appinsights.bicep' = {
+  name: 'appInsightsDeployment'
+  params: {
+    appInsightsName: appInsightsName
+    location: resourceGroup().location
+    logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceId
     tags: tags
   }
 }
@@ -123,6 +135,7 @@ module functionApp 'modules/functionapp.bicep' = {
     storageAccountName: storageAccount.outputs.storageAccountName
     keyVaultName: keyVault.outputs.keyVaultName
     logAnalyticsWorkspaceId: logAnalytics.outputs.workspaceCustomerId
+    appInsightsConnectionString: appInsights.outputs.connectionString
     packageUrl: packageUrl
     tags: tags
   }
