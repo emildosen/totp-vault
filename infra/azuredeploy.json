@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.39.26.7824",
-      "templateHash": "13795178407221335055"
+      "templateHash": "10756416358137172631"
     }
   },
   "parameters": {
@@ -46,7 +46,7 @@
     "keyVaultName": "[format('{0}-kv-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
     "storageAccountName": "[format('{0}st{1}', replace(parameters('resourcePrefix'), '-', ''), variables('uniqueSuffix'))]",
     "functionAppName": "[format('{0}-func-{1}', parameters('resourcePrefix'), variables('uniqueSuffix'))]",
-    "keyVaultSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6",
+    "keyVaultSecretsOfficerRoleId": "b86a8fe4-44ce-4948-aee5-eccb2c155cd7",
     "packageUrl": "[format('{0}/releases/latest/download/totp-vault.zip', parameters('repoUrl'))]"
   },
   "resources": {
@@ -81,13 +81,13 @@
         "logAnalytics"
       ]
     },
-    "keyVaultSecretsUserRoleAssignment": {
+    "keyVaultSecretsOfficerRoleAssignment": {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
       "scope": "[format('Microsoft.KeyVault/vaults/{0}', variables('keyVaultName'))]",
-      "name": "[guid(variables('keyVaultName'), variables('functionAppName'), variables('keyVaultSecretsUserRoleId'))]",
+      "name": "[guid(variables('keyVaultName'), variables('functionAppName'), variables('keyVaultSecretsOfficerRoleId'))]",
       "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsUserRoleId'))]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('keyVaultSecretsOfficerRoleId'))]",
         "principalId": "[reference('functionApp').outputs.principalId.value]",
         "principalType": "ServicePrincipal"
       },

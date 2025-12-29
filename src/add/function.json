@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "post"],
-      "route": "api/totp/{id?}"
+      "methods": ["get"],
+      "route": "add"
     },
     {
       "type": "http",

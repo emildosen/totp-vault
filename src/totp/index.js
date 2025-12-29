@@ -6,6 +6,12 @@ const crypto = require("crypto");
 // Cache the credential and secret client for connection reuse
 let secretClient = null;
 
+// Operation types for logging
+const OPERATION = {
+  GET: "GET",
+  CREATE: "CREATE",
+};
+
 /**
  * Initialize the Key Vault secret client with managed identity
  */
@@ -77,6 +83,14 @@ function isUserAuthorized(groups, allowedGroupId) {
     throw new Error("ALLOWED_GROUP_ID environment variable is not configured");
   }
   return groups.includes(allowedGroupId);
+}
+
+/**
+ * Validate that a string is valid base32
+ */
+function isValidBase32(str) {
+  const cleaned = str.replace(/\s/g, "").toUpperCase();
+  return /^[A-Z2-7]+=*$/.test(cleaned) && cleaned.length >= 16;
 }
 
 /**
@@ -182,10 +196,9 @@ function isValidId(id) {
 }
 
 /**
- * Main Azure Function handler
+ * Handle GET request - retrieve TOTP code
  */
-module.exports = async function (context, req) {
-  const id = context.bindingData.id;
+async function handleGetTotp(context, req, id) {
   const timestamp = new Date().toISOString();
   let userUpn = "unknown";
   let success = false;
@@ -267,17 +280,167 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: { "Content-Type": "application/json" },
-      body: { error: "An internal error occurred while processing the request", details: error.message },
+      body: { error: "An internal error occurred while processing the request" },
     };
   } finally {
     // Log the request to Log Analytics (fire and forget)
     logToAnalytics({
       Timestamp: timestamp,
+      Operation: OPERATION.GET,
       UserPrincipalName: userUpn,
       SecretId: id || "invalid",
       Success: success,
       ErrorMessage: errorMessage,
       ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
     }).catch((err) => console.error("Failed to log audit entry:", err));
+  }
+}
+
+/**
+ * Handle POST request - add new TOTP secret
+ */
+async function handleCreateTotp(context, req) {
+  const timestamp = new Date().toISOString();
+  let userUpn = "unknown";
+  let success = false;
+  let errorMessage = null;
+  let secretId = "unknown";
+
+  try {
+    // Parse authentication header
+    const clientPrincipal = parseClientPrincipal(req);
+    if (!clientPrincipal) {
+      errorMessage = "Not authenticated";
+      context.res = {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Authentication required" },
+      };
+      return;
+    }
+
+    // Extract user details
+    const { upn, groups } = getUserDetails(clientPrincipal);
+    userUpn = upn;
+
+    // Check group membership
+    const allowedGroupId = process.env.ALLOWED_GROUP_ID;
+    if (!isUserAuthorized(groups, allowedGroupId)) {
+      errorMessage = "Not authorized - not a member of allowed group";
+      context.res = {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Access denied. You are not authorized to add secrets." },
+      };
+      return;
+    }
+
+    // Parse request body
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      errorMessage = "Invalid request body";
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Request body must be a JSON object with 'id' and 'secret' fields." },
+      };
+      return;
+    }
+
+    const { id, secret } = body;
+    secretId = id || "invalid";
+
+    // Validate ID
+    if (!id || !isValidId(id)) {
+      errorMessage = "Invalid ID format";
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Invalid ID format. ID must be a numeric string." },
+      };
+      return;
+    }
+
+    // Validate secret
+    if (!secret || typeof secret !== "string") {
+      errorMessage = "Missing secret";
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Secret is required and must be a string." },
+      };
+      return;
+    }
+
+    const cleanedSecret = secret.replace(/\s/g, "").toUpperCase();
+    if (!isValidBase32(cleanedSecret)) {
+      errorMessage = "Invalid secret format";
+      context.res = {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+        body: { error: "Secret must be a valid Base32 string (at least 16 characters, A-Z and 2-7)." },
+      };
+      return;
+    }
+
+    // Store in Key Vault
+    const client = getSecretClient();
+    const secretName = `totp-${id}`;
+
+    // Create the secret value as JSON (allows for future algorithm/digits/period config)
+    const secretValue = JSON.stringify({
+      secret: cleanedSecret,
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+    });
+
+    await client.setSecret(secretName, secretValue);
+
+    success = true;
+    context.res = {
+      status: 201,
+      headers: { "Content-Type": "application/json" },
+      body: { message: "Secret added successfully", id: id },
+    };
+  } catch (error) {
+    context.log.error("Error creating TOTP secret:", error.message, error.stack);
+    errorMessage = error.message;
+    context.res = {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: { error: "An internal error occurred while saving the secret" },
+    };
+  } finally {
+    // Log the request to Log Analytics (fire and forget)
+    logToAnalytics({
+      Timestamp: timestamp,
+      Operation: OPERATION.CREATE,
+      UserPrincipalName: userUpn,
+      SecretId: secretId,
+      Success: success,
+      ErrorMessage: errorMessage,
+      ClientIP: req.headers["x-forwarded-for"] || req.headers["x-client-ip"] || "unknown",
+    }).catch((err) => console.error("Failed to log audit entry:", err));
+  }
+}
+
+/**
+ * Main Azure Function handler - routes to GET or POST handler
+ */
+module.exports = async function (context, req) {
+  const method = req.method.toUpperCase();
+
+  if (method === "GET") {
+    const id = context.bindingData.id;
+    await handleGetTotp(context, req, id);
+  } else if (method === "POST") {
+    await handleCreateTotp(context, req);
+  } else {
+    context.res = {
+      status: 405,
+      headers: { "Content-Type": "application/json" },
+      body: { error: "Method not allowed" },
+    };
   }
 };

@@ -1,5 +1,8 @@
 # TOTP Vault
 
+## IN DEVELOPMENT
+Still missing basic features, like web UI to add new secrets. Coming soon.
+
 A lightweight Azure Function App that retrieves TOTP codes from Azure Key Vault. Designed for IT teams managing shared service accounts where MFA secrets need to be stored separately from passwords.
 
 Users click a link containing a password ID, authenticate via Entra ID, and receive a TOTP code.

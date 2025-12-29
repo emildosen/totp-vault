@@ -40,9 +40,9 @@ var keyVaultName = '${resourcePrefix}-kv-${uniqueSuffix}'
 var storageAccountName = '${replace(resourcePrefix, '-', '')}st${uniqueSuffix}'
 var functionAppName = '${resourcePrefix}-func-${uniqueSuffix}'
 
-// Key Vault Secrets User role definition ID
-// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#key-vault-secrets-user
-var keyVaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+// Key Vault Secrets Officer role definition ID (allows get, set, delete secrets)
+// https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#key-vault-secrets-officer
+var keyVaultSecretsOfficerRoleId = 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
 
 // Package URL for WEBSITE_RUN_FROM_PACKAGE
 var packageUrl = '${repoUrl}/releases/latest/download/totp-vault.zip'
@@ -148,13 +148,13 @@ module functionApp 'modules/functionapp.bicep' = {
 // Role Assignments
 // ============================================================================
 
-// Grant Function App managed identity access to Key Vault secrets
+// Grant Function App managed identity access to Key Vault secrets (read and write)
 // Scoped to the specific Key Vault, not the entire resource group
-resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVaultName, functionAppName, keyVaultSecretsUserRoleId)
+resource keyVaultSecretsOfficerRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVaultName, functionAppName, keyVaultSecretsOfficerRoleId)
   scope: keyVaultRef
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsUserRoleId)
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', keyVaultSecretsOfficerRoleId)
     principalId: functionApp.outputs.principalId
     principalType: 'ServicePrincipal'
   }
